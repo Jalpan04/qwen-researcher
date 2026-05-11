@@ -94,7 +94,7 @@ def train():
         train_dataset=dataset,
         peft_config=peft_config,
         args=training_args,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
     )
 
     # 8. Start Training
