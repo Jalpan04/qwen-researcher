@@ -15,7 +15,7 @@ pipeline_tag: text-generation
 quantized_by: f16
 ---
 
-# Qwen CS Researcher (0.5B - GGUF)
+# Qwen Researcher (0.5B - GGUF)
 
 A specialized version of **Qwen2.5-0.5B-Instruct** fine-tuned for Computer Science research assistance. This model has been instruction-tuned on a curated subset of 2,000 arXiv Computer Science papers to provide academic summaries and technical insights.
 

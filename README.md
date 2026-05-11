@@ -1,6 +1,6 @@
-# Qwen CS Researcher: QLoRA Fine-Tuning Tutorial
+# Qwen Researcher: QLoRA Fine-Tuning Tutorial
 
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/Jalpan04/qwen-cs-researcher-finetune)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/Jalpan04/qwen-researcher)
 [![Hugging Face](https://img.shields.io/badge/Hugging_Face-Model_Weights-orange)](https://huggingface.co/jalpan04/qwen-researcher)
 
 This document serves as your complete guide and documentation for fine-tuning the Qwen2.5-0.5B-Instruct model on the arXiv Computer Science dataset.
