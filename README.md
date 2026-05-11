@@ -1,7 +1,7 @@
 # Qwen CS Researcher: QLoRA Fine-Tuning Tutorial
 
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/Jalpan04/qwen-cs-researcher-finetune)
-[![Hugging Face](https://img.shields.io/badge/Hugging_Face-Model_Weights-orange)](https://huggingface.co/Jalpan04/qwen-cs-researcher-0.5B)
+[![Hugging Face](https://img.shields.io/badge/Hugging_Face-Model_Weights-orange)](https://huggingface.co/jalpan04/qwen-researcher)
 
 This document serves as your complete guide and documentation for fine-tuning the Qwen2.5-0.5B-Instruct model on the arXiv Computer Science dataset.
 
@@ -38,8 +38,14 @@ For RTX 4060 and newer cards, we used `bf16=True` and `fp16=False`. Standard FP1
 ### 2. Dependency Conflicts (PyArrow)
 We pinned `pyarrow==19.0.0` and `numpy<2.0.0`. Newer versions of PyArrow on Windows 10/11 can cause silent interpreter crashes during dataset loading.
 
-### 3. Connection Reset (WinError 10054)
-If uploading to Hugging Face fails with a Connection Reset, it is often due to Python's security handshake being blocked by a local firewall. Bypassing global login or forcing IPv4 usually resolves this.
+### 3. UnicodeDecodeError (Charmap Fix)
+On Windows, some libraries try to load UTF-8 files using the default "charmap" encoding. If you see an error about `byte 0x81`, run this before training:
+```powershell
+$env:PYTHONUTF8=1
+```
+
+### 4. Connection Reset (WinError 10054)
+If uploading to Hugging Face fails with a Connection Reset, it is often due to Python's security handshake being blocked by a local firewall.
 
 ## Quick Start (Ollama)
 
@@ -55,4 +61,4 @@ If uploading to Hugging Face fails with a Connection Reset, it is often due to P
 - train.py: The QLoRA training engine.
 - prepare_data.py: Dataset cleaning and formatting.
 - merge_model.py: Final weight merging.
-- upload_model.py: Robust HF uploader script.
+- check_gpu.py: Hardware diagnostic script.
