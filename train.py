@@ -1,6 +1,5 @@
-print(">>> DEBUG: Starting script execution...")
-print(">>> DEBUG: Importing libraries (transformers can take 10-20 seconds to initialize)...")
 import torch
+import os
 from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
@@ -12,108 +11,103 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from trl import SFTTrainer, SFTConfig
 
 def train():
-    print(">>> DEBUG: Entering train() function...")
-    # Clear any leftover memory from the previous crash
+    """
+    Main training function to fine-tune Qwen2.5-0.5B using QLoRA.
+    This script is optimized for consumer GPUs (like RTX 4060) and 
+    addresses specific Windows/NVIDIA driver compatibility issues.
+    """
+    
+    # Clear CUDA memory before starting to prevent fragmentation
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     
-    model_id = "Qwen/Qwen2.5-0.5B-Instruct" # A tiny 0.5B parameter model (under 1GB download)
+    model_id = "Qwen/Qwen2.5-0.5B-Instruct"
     data_file = "arxiv_cs_2000.jsonl"
     output_dir = "./qwen-resercher-checkpoints"
 
-    print(f">>> DEBUG: Loading tokenizer for {model_id}...")
+    # 1. Load Tokenizer
+    # We use the standard Qwen tokenizer. Padding is set to the right for Causal LM training.
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-    # Setting padding side to right is often required for causal LMs during training
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
-    print(">>> DEBUG: Checking for GPU...")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f">>> DEBUG: Using device: {device}")
+    # 2. BitsAndBytes Configuration (QLoRA)
+    # This allows us to load the model in 4-bit, saving ~75% of VRAM.
+    # We use 'nf4' (Normal Float 4) which is more accurate than standard 4-bit.
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16 # Use bfloat16 for RTX 40-series stability
+    )
 
-    bnb_config = None
-    if device == "cuda":
-        print(">>> DEBUG: Configuring 4-bit Quantization (QLoRA) for GPU...")
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16
-        )
-    else:
-        print(">>> DEBUG: No GPU found. Skipping 4-bit quantization to improve CPU performance.")
-
-    print(f">>> DEBUG: Loading Model from Hugging Face...")
+    # 3. Load Base Model
+    # device_map="auto" automatically balances the model across available GPU/CPU.
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         quantization_config=bnb_config,
-        device_map=device
+        device_map="auto",
+        trust_remote_code=True
     )
-    
-    print(">>> DEBUG: Preparing model for k-bit training...")
+
+    # Prepare model for kbit training (adds gradient checkpointing and layer freezing)
     model = prepare_model_for_kbit_training(model)
 
-    print(">>> DEBUG: Configuring LoRA adapters...")
-    lora_config = LoraConfig(
-        r=16, # Rank
-        lora_alpha=32, # Alpha multiplier
+    # 4. LoRA Configuration
+    # We only train a tiny 'adapter' (rank 16) instead of all 500M parameters.
+    # target_modules defines which layers are adapted (Q, K, V, O in attention blocks).
+    peft_config = LoraConfig(
+        r=16,
+        lora_alpha=32,
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM"
     )
-    
-    print(">>> DEBUG: LoRA config created (SFTTrainer will inject the adapters).")
 
-    print(f">>> DEBUG: Loading local dataset from {data_file}...")
+    # 5. Load Dataset
+    # We load the ChatML-formatted data prepared by prepare_data.py
     dataset = load_dataset("json", data_files=data_file, split="train")
 
-    print(">>> DEBUG: Applying chat template to dataset...")
-
-    # The SFTTrainer needs the messages transformed into the exact string format 
-    # the model expects. We use the tokenizer's chat template.
-    def format_chat_template(example):
-        example["text"] = tokenizer.apply_chat_template(example["messages"], tokenize=False)
-        return example
-
-    dataset = dataset.map(format_chat_template)
-
-    print("6. Setting up SFT Configuration...")
-    sft_config = SFTConfig(
+    # 6. Training Arguments
+    # Optimized for 8GB VRAM cards.
+    # bf16=True is essential for RTX 40-series to avoid precision errors.
+    training_args = SFTConfig(
         output_dir=output_dir,
-        dataset_text_field="text",
-        max_length=1024,
         per_device_train_batch_size=1,
-        gradient_accumulation_steps=16,
-        gradient_checkpointing=True,
+        gradient_accumulation_steps=16, # Mimics a batch size of 16 for stability
         learning_rate=2e-4,
-        logging_steps=1,
+        logging_steps=10,
         max_steps=200,
-        save_strategy="epoch",
-        optim="paged_adamw_8bit",
-        bf16=(device == "cuda"),
+        save_steps=100,
+        optim="paged_adamw_8bit", # Saves memory by offloading optimizer states
+        bf16=True,
         fp16=False,
-        run_name="qwen-cs-arxiv-finetune",
-        report_to="none"
+        dataset_text_field="text", # SFTTrainer uses this to find the input strings
+        max_seq_length=1024,
+        gradient_checkpointing=True,
+        packing=False
     )
 
-    print("7. Initializing SFTTrainer...")
+    # 7. Initialize Trainer
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        peft_config=lora_config,
-        processing_class=tokenizer,
-        args=sft_config,
+        peft_config=peft_config,
+        args=training_args,
+        tokenizer=tokenizer,
     )
 
-    print("8. Starting Training...")
+    # 8. Start Training
+    print("Starting fine-tuning...")
     trainer.train()
 
-    print("9. Saving the Adapter Model...")
-    final_save_path = "qwen-resercher"
-    trainer.model.save_pretrained(final_save_path)
-    tokenizer.save_pretrained(final_save_path)
-    print(f"Training Complete! Adapter saved to {final_save_path}")
+    # 9. Save the Adapter
+    # This only saves the tiny adapter files (~50MB), not the full model.
+    print("Saving fine-tuned adapter...")
+    trainer.model.save_pretrained("qwen-resercher")
+    tokenizer.save_pretrained("qwen-resercher")
+    print("Training complete.")
 
 if __name__ == "__main__":
     train()

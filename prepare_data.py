@@ -1,76 +1,72 @@
 import json
-import zipfile
 import random
 import os
 
-ZIP_FILE = "archive.zip"
-JSON_FILE = "arxiv-metadata-oai-snapshot.json"
-OUTPUT_FILE = "arxiv_cs_2000.jsonl"
-SAMPLE_SIZE = 2000
-
-def process_data():
-    if not os.path.exists(ZIP_FILE):
-        print(f"Error: {ZIP_FILE} not found in the current directory.")
+def prepare_data():
+    """
+    Data preparation script to convert raw arXiv metadata into ChatML format.
+    Handles memory efficiency by streaming the source file line-by-line.
+    """
+    
+    input_file = "arxiv-metadata-oai-snapshot.json"
+    output_file = "arxiv_cs_2000.jsonl"
+    
+    # Check if input exists
+    if not os.path.exists(input_file):
+        print(f"Source file {input_file} not found. Please ensure it is in the directory.")
         return
 
-    # Extract JSON file if it hasn't been extracted yet
-    if not os.path.exists(JSON_FILE):
-        print(f"Extracting {JSON_FILE} from {ZIP_FILE}...")
-        with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
-            zip_ref.extract(JSON_FILE)
-    else:
-        print(f"{JSON_FILE} already extracted. Skipping extraction.")
-    
-    print("Streaming JSON and filtering for 'cs.' categories...")
     cs_papers = []
-    
-    # We open and stream the file line by line to prevent massive memory usage
-    with open(JSON_FILE, 'r', encoding='utf-8') as f:
+    print("Scanning arXiv dataset for Computer Science papers...")
+
+    # We use a streaming approach (open/read) to avoid loading the whole JSON into memory.
+    with open(input_file, 'r', encoding='utf-8') as f:
         for line in f:
             try:
                 paper = json.loads(line)
-                # Filter strictly for papers where category string includes "cs."
+                # Filter for papers containing 'cs.' in categories
                 if 'cs.' in paper.get('categories', ''):
-                    cs_papers.append(paper)
+                    cs_papers.append({
+                        'title': paper.get('title', 'No Title'),
+                        'abstract': paper.get('abstract', 'No Abstract').replace('\n', ' ').strip()
+                    })
             except json.JSONDecodeError:
                 continue
-    
-    print(f"Found {len(cs_papers)} Computer Science papers.")
-    print(f"Randomly sampling {SAMPLE_SIZE} papers...")
-    
-    if len(cs_papers) < SAMPLE_SIZE:
-        print(f"Warning: Only found {len(cs_papers)} CS papers, which is less than requested.")
-        sampled_papers = cs_papers
-    else:
-        sampled_papers = random.sample(cs_papers, SAMPLE_SIZE)
-    
-    print(f"Formatting to JSONL and saving to {OUTPUT_FILE}...")
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as out_f:
-        for paper in sampled_papers:
-            title = paper.get('title', '').strip()
-            abstract = paper.get('abstract', '').strip()
-            
-            # Format using standard chat template structure
-            formatted_item = {
-                "messages": [
-                    {
-                        "role": "system", 
-                        "content": "You are an expert post-doctoral computer science researcher. Provide accurate, highly technical summaries."
-                    },
-                    {
-                        "role": "user", 
-                        "content": f"Can you summarize the research paper titled {title}?"
-                    },
-                    {
-                        "role": "assistant", 
-                        "content": abstract
-                    }
-                ]
-            }
-            # Write out as a JSONL (one JSON object per line)
-            out_f.write(json.dumps(formatted_item) + '\n')
 
-    print(f"Data preparation complete! Check {OUTPUT_FILE}.")
+    # Select a diverse sample of 2,000 papers for instruction tuning
+    if len(cs_papers) > 2000:
+        print(f"Found {len(cs_papers)} CS papers. Sampling 2,000...")
+        selected_papers = random.sample(cs_papers, 2000)
+    else:
+        print(f"Found {len(cs_papers)} CS papers. Using all available data.")
+        selected_papers = cs_papers
+
+    # Convert to ChatML/Instruction format for Qwen
+    # Each entry consists of a system prompt, a user question, and the assistant response.
+    print(f"Writing formatted data to {output_file}...")
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for paper in selected_papers:
+            # Construct the conversation
+            messages = [
+                {
+                    "role": "system", 
+                    "content": "You are a professional computer science researcher. Provide academic, detailed information based on research abstracts."
+                },
+                {
+                    "role": "user", 
+                    "content": f"Summarize the research and key contributions of the paper titled: {paper['title']}"
+                },
+                {
+                    "role": "assistant", 
+                    "content": paper['abstract']
+                }
+            ]
+            
+            # Write as a JSONL line
+            json_line = json.dumps({"messages": messages})
+            f.write(json_line + '\n')
+
+    print("Data preparation complete.")
 
 if __name__ == "__main__":
-    process_data()
+    prepare_data()

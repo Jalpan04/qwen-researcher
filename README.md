@@ -1,52 +1,58 @@
-# Ministral-3b QLoRA Fine-Tuning Tutorial & Documentation
+# Qwen CS Researcher: QLoRA Fine-Tuning Tutorial
 
-This document serves as your complete guide and personal documentation for fine-tuning the `mistralai/Ministral-3b-instruct` model on the Kaggle arXiv dataset.
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/Jalpan04/qwen-cs-researcher-finetune)
+[![Hugging Face](https://img.shields.io/badge/Hugging_Face-Model_Weights-orange)](https://huggingface.co/Jalpan04/qwen-cs-researcher-0.5B)
 
-## Phase 1: Data Preparation (`prepare_data.py`)
+This document serves as your complete guide and documentation for fine-tuning the Qwen2.5-0.5B-Instruct model on the arXiv Computer Science dataset.
+
+## Phase 1: Data Preparation (prepare_data.py)
 
 The first script's job is to:
-1. Extract the massive JSON snapshot from the ZIP file.
-2. Stream through it (to avoid loading the whole 30GB+ file into RAM at once).
-3. Filter out any paper that doesn't have `cs.` in its category.
-4. Randomly select exactly 2,000 of those papers.
-5. Format them into the standard OpenAI/ChatML structure required for modern instruction tuning.
+1. Extract: Pull the raw metadata from the arXiv archive.
+2. Stream: Process the massive file line-by-line to save RAM.
+3. Filter: Isolate papers in the cs. (Computer Science) category.
+4. Format: Convert them into the ChatML structure for instruction tuning.
 
-The format we are converting the data to looks like this:
-```json
-{
-  "messages": [
-    {"role": "system", "content": "You are an expert post-doctoral computer science researcher..."},
-    {"role": "user", "content": "Can you summarize the research paper titled [Title]?"},
-    {"role": "assistant", "content": "[Abstract]"}
-  ]
-}
-```
+## Phase 2: The Training Script (train.py)
 
-## Phase 2: The Training Script (`train.py`)
+We use QLoRA (Quantized Low-Rank Adaptation) to train a 500M parameter model on a consumer GPU (RTX 4060).
 
-The training script uses the Hugging Face ecosystem to fine-tune the model without requiring massive server farms. It utilizes `trl` (Transformer Reinforcement Learning) and `peft` to handle the heavy lifting.
+### Key Concepts
+*   4-bit Quantization: Loading the model in a compressed state to save VRAM.
+*   LoRA Adapters: Training only a tiny "adapter" layer (Rank=16) instead of all weights.
+*   Gradient Checkpointing: A memory-saving trick that calculates parts of the model on-the-fly.
 
----
+## Phase 3: Merging & Conversion (merge_model.py)
 
-## Under the Hood: Educational Concepts
+Once training is done, we have Adapters. To use them in Ollama:
+1. Merge: Combine the trained adapters back into the original Qwen model.
+2. Convert: Use convert_hf_to_gguf.py to generate the final .gguf file.
 
-To truly understand what you are doing, let's break down the mechanics of the code:
+## Troubleshooting & Optimization (Crucial for Windows)
 
-### 1. Why use 4-bit Quantization (QLoRA)?
-A 3 Billion parameter model in standard 16-bit precision requires about 6GB of VRAM just to load, and double that to train. 
-**Quantization** squashes the model's weights into smaller data types. By compressing the model to 4-bit precision, we shrink the memory footprint to roughly 1.5GB to 2GB. 
-**QLoRA** (Quantized LoRA) is the technique where we load the base model frozen in 4-bit, but train a tiny set of adapter weights on top of it in 16-bit. This allows us to fine-tune large models on consumer GPUs (like RTX 3060/4090) without running out of memory.
+During this project, we resolved several hardware-specific issues that are common for modern NVIDIA cards (RTX 40-series):
 
-### 2. What are PEFT and LoRA?
-* **PEFT (Parameter-Efficient Fine-Tuning):** A broad category of techniques designed to fine-tune large models without updating every single parameter.
-* **LoRA (Low-Rank Adaptation):** A specific PEFT technique. Instead of changing the original 3 Billion weights of the Mistral model, LoRA freezes them and injects small, trainable "matrix decompositions" into the neural network layers. When the model runs, it computes the frozen weights + the small LoRA weights. This reduces the number of trainable parameters by ~99% while maintaining near-full-parameter performance.
+### 1. BF16 vs FP16
+For RTX 4060 and newer cards, we used `bf16=True` and `fp16=False`. Standard FP16 can cause "NaN" losses or runtime errors during the gradient clipping stage on these architectures.
 
-### 3. What do the LoRA `r` (rank) and `alpha` parameters control?
-When we inject those tiny trainable matrices, we have to decide how "wide" they are.
-* **`r` (Rank):** This is the "thickness" or dimension of the LoRA matrices. A higher rank (e.g., 32 or 64) means the adapter can learn more complex patterns, but uses more VRAM and takes longer to train. A lower rank (e.g., 8 or 16) is highly efficient. `r=16` is a great starting point.
-* **`alpha`:** This is the scaling factor. It determines how "loud" or "impactful" the LoRA weights are compared to the frozen base model weights. The standard rule of thumb in the machine learning community is to set **`alpha = 2 * r`** (so if r=16, alpha=32).
+### 2. Dependency Conflicts (PyArrow)
+We pinned `pyarrow==19.0.0` and `numpy<2.0.0`. Newer versions of PyArrow on Windows 10/11 can cause silent interpreter crashes during dataset loading.
 
-### 4. What do `learning_rate` and `batch_size` dictate?
-* **`learning_rate` (e.g., 2e-4):** This controls the "step size" the model takes when updating its weights. If it's too high, the model overshoots and learns nothing (loss explodes). If it's too low, it learns too slowly. Because LoRA only trains a tiny fraction of parameters, we typically use a *higher* learning rate (like `2e-4` or `1e-4`) compared to full fine-tuning (which often uses `2e-5`).
-* **`batch_size`:** The number of papers the model looks at simultaneously before updating its weights. High batch sizes are more stable but eat VRAM. 
-  * *The Trick:* We use a small `per_device_train_batch_size` (like 4) to fit in VRAM, but we use `gradient_accumulation_steps` (like 4) to mimic a batch size of 16. The model will calculate gradients for 4 batches of 4, add them up, and then make one big update.
+### 3. Connection Reset (WinError 10054)
+If uploading to Hugging Face fails with a Connection Reset, it is often due to Python's security handshake being blocked by a local firewall. Bypassing global login or forcing IPv4 usually resolves this.
+
+## Quick Start (Ollama)
+
+1. Download: Get qwen-resercher.gguf from Hugging Face.
+2. Setup: Place the Modelfile in the same folder.
+3. Run:
+   ```powershell
+   ollama create qwen-researcher -f Modelfile
+   ollama run qwen-researcher
+   ```
+
+## Repository Structure
+- train.py: The QLoRA training engine.
+- prepare_data.py: Dataset cleaning and formatting.
+- merge_model.py: Final weight merging.
+- upload_model.py: Robust HF uploader script.
