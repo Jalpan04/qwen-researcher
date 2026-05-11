@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.json
+*.jsonl
+*.gguf
+qwen-resercher/
+qwen-resercher-checkpoints/
+qwen-resercher-final/
+archive.zip
