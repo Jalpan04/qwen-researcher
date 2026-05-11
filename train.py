@@ -81,6 +81,8 @@ def train():
         optim="paged_adamw_8bit",
         bf16=True,
         fp16=False,
+        dataset_text_field="text",
+        max_length=1024,
         gradient_checkpointing=True,
         packing=False
     )
@@ -93,8 +95,6 @@ def train():
         peft_config=peft_config,
         args=training_args,
         tokenizer=tokenizer,
-        dataset_text_field="text",
-        max_seq_length=1024,
     )
 
     # 8. Start Training
