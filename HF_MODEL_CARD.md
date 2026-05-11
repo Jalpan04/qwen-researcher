@@ -5,13 +5,14 @@ tags:
 - qwen
 - qwen2
 - gguf
+- f16
 - computer-science
 - research
 - instruction-tuning
 model_creator: jalpan04
 model_name: Qwen Research Assistant
 pipeline_tag: text-generation
-quantized_by: jalpan04
+quantized_by: f16
 ---
 
 # Qwen CS Researcher (0.5B - GGUF)
