@@ -62,3 +62,7 @@ If uploading to Hugging Face fails with a Connection Reset, it is often due to P
 - prepare_data.py: Dataset cleaning and formatting.
 - merge_model.py: Final weight merging.
 - check_gpu.py: Hardware diagnostic script.
+
+## License
+
+This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
