@@ -1,6 +1,6 @@
 # Qwen Researcher: QLoRA Fine-Tuning Tutorial
 
-![GitHub top language](https://img.shields.io/github/languages/top/Jalpan04/qwen-researcher) ![GitHub repo size](https://img.shields.io/github/repo-size/Jalpan04/qwen-researcher) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org) [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=flat&logo=pytorch&logoColor=white)](https://pytorch.org) [![Transformers](https://img.shields.io/badge/Transformers-FFD21E?style=flat&logo=huggingface&logoColor=black)](https://huggingface.co/docs/transformers) [![PEFT](https://img.shields.io/badge/PEFT-FFD21E?style=flat&logo=huggingface&logoColor=black)](https://github.com/huggingface/peft) [![Unsloth](https://img.shields.io/badge/Unsloth-4F46E5?style=flat&logo=unsloth&logoColor=white)](https://github.com/unslothai/unsloth) [![Ollama](https://img.shields.io/badge/Ollama-000000?style=flat&logo=ollama&logoColor=white)](https://ollama.com) ![GitHub repo size](https://img.shields.io/github/repo-size/Jalpan04/qwen-researcher) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/Jalpan04/qwen-researcher)
 [![Hugging Face](https://img.shields.io/badge/Hugging_Face-Model_Weights-orange)](https://huggingface.co/jalpan04/qwen-researcher)
