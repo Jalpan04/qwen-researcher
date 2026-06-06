@@ -1,5 +1,7 @@
 # Qwen Researcher: QLoRA Fine-Tuning Tutorial
 
+![GitHub top language](https://img.shields.io/github/languages/top/Jalpan04/qwen-researcher) ![GitHub repo size](https://img.shields.io/github/repo-size/Jalpan04/qwen-researcher) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/Jalpan04/qwen-researcher)
 [![Hugging Face](https://img.shields.io/badge/Hugging_Face-Model_Weights-orange)](https://huggingface.co/jalpan04/qwen-researcher)
 
